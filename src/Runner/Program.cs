@@ -10,12 +10,14 @@ namespace Runner
     {
         static void Main(string[] args)
         {
-            var path = @"C:\OpenSourceProjects\NHibernate\nhibernate\src";
-            var parser = new ExtractLoggers(path);
+            var extracter = new ExtractLoggers();
+            var loggers = extracter.GetStaticLoggers();
 
-            foreach (var a in parser.Get())
+            Console.WriteLine(string.Format("fields count: {0}", loggers.Count));
+
+            foreach (var logger in loggers)
             {
-                Console.WriteLine(a);
+                
             }
         }
     }

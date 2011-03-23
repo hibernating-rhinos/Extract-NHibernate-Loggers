@@ -11,29 +11,19 @@ namespace NHibernateLoggerExtractor
 {
     public class ExtractLoggers
     {
-        private readonly string _sourceFileLocation;
-
-        public ExtractLoggers(string sourceFileLocation)
-        {
-            _sourceFileLocation = sourceFileLocation;
-            InitNHibernate();
-        }
-
-        public IList<Logger> Get()
+        public IList<Logger> GetStaticLoggers()
         {
             var loggers = new List<Logger>();
 
             var module = ModuleDefinition.ReadModule("NHibernate.dll");
             var classes = module.Types
-                .Where(x => x.IsClass && x.HasFields && x.Name == "AbstractSessionImpl")
+                .Where(x => x.IsClass && x.HasFields)
                 .ToList();
 
             var fields = classes
                 .SelectMany(x => x.Fields)
                 .Where(x => x.FieldType.FullName == "NHibernate.IInternalLogger" && x.IsStatic)
                 .ToList();
-
-            Console.WriteLine(string.Format("fields count: {0}", fields.Count));
 
             foreach (var fieldDefinition in fields)
             {
@@ -54,19 +44,21 @@ namespace NHibernateLoggerExtractor
 
                 var type = Type.GetType(logger.ClassName + ", NHibernate");
                 var field = type.GetField(logger.FieldName, BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.GetField);
-                var l = (ExposeTypeLogger) field.GetValue(null);
-                logger.LoggerType = l.Logger;
+
+                try
+                {
+                    var l = (ExposeTypeLogger)field.GetValue(null);
+                    logger.LoggerType = l.Logger;
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
 
                 loggers.Add(logger);
             }
 
             return loggers;
-        }
-
-        private void InitNHibernate()
-        {
-            var c = new Configuration()
-                .Configure("NHibernate.config");
         }
     }
 }

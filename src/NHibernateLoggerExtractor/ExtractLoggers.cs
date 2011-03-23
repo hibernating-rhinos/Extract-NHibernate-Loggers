@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using Mono.Cecil;
 using NHibernate;
 using NHibernate.Cfg;
@@ -51,9 +52,10 @@ namespace NHibernateLoggerExtractor
                     var a = ctor.GetILProcessor();
                 }
 
-                var nhibernate = Type.GetType(logger.ClassName + ", NHibernate");
-                var field = nhibernate.GetField(logger.FieldName);
-                logger.LoggerType = (string)field.GetValue(null);
+                var type = Type.GetType(logger.ClassName + ", NHibernate");
+                var field = type.GetField(logger.FieldName, BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.GetField);
+                var l = (ExposeTypeLogger) field.GetValue(null);
+                logger.LoggerType = l.Logger;
 
                 loggers.Add(logger);
             }

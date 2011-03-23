@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Mono.Cecil;
+using NHibernate;
+using NHibernate.Cfg;
 
 namespace NHibernateLoggerExtractor
 {
@@ -13,7 +15,7 @@ namespace NHibernateLoggerExtractor
         public ExtractLoggers(string sourceFileLocation)
         {
             _sourceFileLocation = sourceFileLocation;
-            var keepReferenceToNhibernate = new NHibernate.ADOException();
+            InitNHibernate();
         }
 
         public IList<Logger> Get()
@@ -22,7 +24,7 @@ namespace NHibernateLoggerExtractor
 
             var module = ModuleDefinition.ReadModule("NHibernate.dll");
             var classes = module.Types
-                .Where(x => x.IsClass && x.HasFields)
+                .Where(x => x.IsClass && x.HasFields && x.Name == "AbstractSessionImpl")
                 .ToList();
 
             var fields = classes
@@ -34,32 +36,35 @@ namespace NHibernateLoggerExtractor
 
             foreach (var fieldDefinition in fields)
             {
+                var logger = new Logger
+                                 {
+                                     ClassName = fieldDefinition.DeclaringType.FullName,
+                                     LoggerType = "",
+                                     FieldName = fieldDefinition.Name,
+                                 };
                 var ctors = fieldDefinition.DeclaringType.Methods
                     .Where(x => x.IsConstructor && x.HasBody)
                     .Select(x => x.Body);
 
                 foreach (var ctor in ctors)
                 {
-                    var a = ctor;
+                    var a = ctor.GetILProcessor();
                 }
 
-                loggers.Add(new Logger
-                                {
-                                    ClassName = fieldDefinition.DeclaringType.FullName,
-                                    LoggerType =  "",
-                                    FieldName = fieldDefinition.Name,
-                                });
+                var nhibernate = Type.GetType(logger.ClassName + ", NHibernate");
+                var field = nhibernate.GetField(logger.FieldName);
+                logger.LoggerType = (string)field.GetValue(null);
+
+                loggers.Add(logger);
             }
 
             return loggers;
         }
 
-        private IList<string> GetAllCodeFilse()
+        private void InitNHibernate()
         {
-            DirectoryInfo directory = new DirectoryInfo(_sourceFileLocation);
-            FileInfo[] files = directory.GetFiles("*.cs", SearchOption.AllDirectories);
-
-            return files.Select(x => x.FullName).ToList();
+            var c = new Configuration()
+                .Configure("NHibernate.config");
         }
     }
 }

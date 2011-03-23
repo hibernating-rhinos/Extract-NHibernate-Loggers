@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using ICSharpCode.NRefactory;
+using Mono.Cecil;
 
 namespace NHibernateLoggerExtractor
 {
@@ -13,20 +13,44 @@ namespace NHibernateLoggerExtractor
         public ExtractLoggers(string sourceFileLocation)
         {
             _sourceFileLocation = sourceFileLocation;
+            var keepReferenceToNhibernate = new NHibernate.ADOException();
         }
 
         public IList<Logger> Get()
         {
             var loggers = new List<Logger>();
 
-            var file = @"C:\OpenSourceProjects\NHibernate\nhibernate\src\NHibernate\Impl\AbstractSessionImpl.cs";
-            using (IParser parser = ParserFactory.CreateParser(file))
+            var module = ModuleDefinition.ReadModule("NHibernate.dll");
+            var classes = module.Types
+                .Where(x => x.IsClass && x.HasFields)
+                .ToList();
+
+            var fields = classes
+                .SelectMany(x => x.Fields)
+                .Where(x => x.FieldType.FullName == "NHibernate.IInternalLogger" && x.IsStatic)
+                .ToList();
+
+            Console.WriteLine(string.Format("fields count: {0}", fields.Count));
+
+            foreach (var fieldDefinition in fields)
             {
-                parser.Parse();
-                var visitor = new LoggerFieldVisitor();
-                parser.CompilationUnit.AcceptVisitor(visitor, null);
-                loggers.AddRange(visitor.Loggers);
+                var ctors = fieldDefinition.DeclaringType.Methods
+                    .Where(x => x.IsConstructor && x.HasBody)
+                    .Select(x => x.Body);
+
+                foreach (var ctor in ctors)
+                {
+                    var a = ctor;
+                }
+
+                loggers.Add(new Logger
+                                {
+                                    ClassName = fieldDefinition.DeclaringType.FullName,
+                                    LoggerType =  "",
+                                    FieldName = fieldDefinition.Name,
+                                });
             }
+
             return loggers;
         }
 
